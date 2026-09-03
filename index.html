@@ -226,8 +226,8 @@
     /* Contenedor de la Bandera con protocolo de respeto al cursor */
     .flag-wrapper {
       width: 100%;
-      max-width: 380px;
-      height: 210px;
+      max-width: 640px;
+      height: 355px;
       margin: 0 auto 24px;
       border: 2px solid var(--gov-gold);
       box-shadow: var(--shadow-soft);
@@ -679,6 +679,11 @@
 
     .submit-btn:hover { opacity: 0.9; }
 
+    .submit-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
     .form-feedback {
       display: none;
       margin-top: 14px;
@@ -689,6 +694,12 @@
       font-size: 0.82rem;
     }
     .form-feedback.show { display: block; }
+
+    .form-feedback.error {
+      border-color: #C56A59;
+      background: rgba(197, 106, 89, 0.1);
+      color: #E4A294;
+    }
 
     /* Sección Legal y RGPD (acordeón) */
     .legal-box {
@@ -1017,18 +1028,18 @@
             ¿Has capturado un rincón natural registrado o un momento representativo del colectivo? Envía tu imagen para su incorporación al archivo visual.
           </p>
 
-          <form id="photoForm" novalidate>
+          <form id="photoForm" action="PEGA_AQUI_TU_ENLACE_DE_SHEETMONKEY_FOTOS" method="POST" novalidate>
             <label for="photoAuthor">Autor / Miembro Proponente</label>
-            <input id="photoAuthor" type="text" placeholder="Ej. Martí de Vilonia" required>
+            <input id="photoAuthor" name="Autor" type="text" placeholder="Ej. Martí de Vilonia" required>
 
             <label for="photoTitle">Título del Paraje o Fotografía</label>
-            <input id="photoTitle" type="text" placeholder="Ej. Mirador de la Concordia al Atardecer" required>
+            <input id="photoTitle" name="Título" type="text" placeholder="Ej. Mirador de la Concordia al Atardecer" required>
 
             <label for="photoUrl">Enlace / URL de la Imagen (o archivo)</label>
-            <input id="photoUrl" type="url" placeholder="https://mi-imagen.com/foto.jpg" required>
+            <input id="photoUrl" name="URL de la imagen" type="url" placeholder="https://mi-imagen.com/foto.jpg" required>
 
             <label for="photoDesc">Breve Descripción o Contexto</label>
-            <textarea id="photoDesc" rows="2" placeholder="Describe brevemente el lugar o la vivencia retratada..."></textarea>
+            <textarea id="photoDesc" name="Descripción" rows="2" placeholder="Describe brevemente el lugar o la vivencia retratada..."></textarea>
 
             <div class="moderation-notice">
               <strong>Aviso de Moderación y Aprobación Previa:</strong><br>
@@ -1107,16 +1118,16 @@
         </p>
 
         <!-- Formulario de registro -->
-        <form id="memberForm" novalidate>
+        <form id="memberForm" action="PEGA_AQUI_TU_ENLACE_DE_SHEETMONKEY_MIEMBROS" method="POST" novalidate>
 
           <label for="memberName">Nombre / Apelativo</label>
-          <input id="memberName" type="text" placeholder="Ej. Adrián de Vilonia" required>
+          <input id="memberName" name="Nombre" type="text" placeholder="Ej. Adrián de Vilonia" required>
 
           <label for="memberSponsor">Miembro Avalista</label>
-          <input id="memberSponsor" type="text" placeholder="Miembro de referencia (Ej. Martí, Izan, Ángel...)" required>
+          <input id="memberSponsor" name="Avalista" type="text" placeholder="Miembro de referencia (Ej. Martí, Izan, Ángel...)" required>
 
           <label for="memberType">Tipo de Trámite</label>
-          <select id="memberType" required>
+          <select id="memberType" name="Tipo de trámite" required>
             <option value="" disabled selected>Seleccione opción...</option>
             <option value="alta">Alta de Miembro (Gratuito / Libre)</option>
             <option value="baja">Solicitud de Baja / Borrado de Datos (RGPD)</option>
@@ -1125,7 +1136,7 @@
           </select>
 
           <label for="memberDetails">Detalles de la Petición</label>
-          <textarea id="memberDetails" rows="4" placeholder="Escribe aquí tu mensaje, propuesta o motivo de contacto..."></textarea>
+          <textarea id="memberDetails" name="Detalles" rows="4" placeholder="Escribe aquí tu mensaje, propuesta o motivo de contacto..."></textarea>
 
           <button type="submit" class="submit-btn">ENVIAR A CANCILLERÍA</button>
           <p class="form-feedback" id="memberFeedback">Petición registrada correctamente en la Cancillería de la Asociación Vilonia.</p>
@@ -1267,22 +1278,58 @@
       });
     })();
 
-    // Formularios: feedback accesible sin recargar la página
+    // Formularios: envío real a la hoja de cálculo (Sheet Monkey) sin salir de la página
     (function () {
-      function wire(formId, feedbackId, message) {
+      function wire(formId, feedbackId, successMessage) {
         var form = document.getElementById(formId);
         var feedback = document.getElementById(feedbackId);
         if (!form || !feedback) return;
+        var submitBtn = form.querySelector('.submit-btn');
+        var originalBtnText = submitBtn ? submitBtn.textContent : '';
+        var configured = form.action && form.action.indexOf('PEGA_AQUI_TU_ENLACE') === -1;
+
+        function showFeedback(text, isError) {
+          feedback.textContent = text;
+          feedback.classList.toggle('error', !!isError);
+          feedback.classList.add('show');
+          feedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
         form.addEventListener('submit', function (e) {
           e.preventDefault();
           if (!form.checkValidity()) {
             form.reportValidity();
             return;
           }
-          feedback.textContent = message;
-          feedback.classList.add('show');
-          form.reset();
-          feedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+          // Mientras no se configure el enlace de Sheet Monkey, se mantiene el
+          // comportamiento visual de siempre (sin enviar datos a ningún sitio).
+          if (!configured) {
+            showFeedback(successMessage, false);
+            form.reset();
+            return;
+          }
+
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'ENVIANDO...';
+          }
+
+          fetch(form.action, { method: 'POST', body: new FormData(form) })
+            .then(function (response) {
+              if (!response.ok) throw new Error('bad response');
+              showFeedback(successMessage, false);
+              form.reset();
+            })
+            .catch(function () {
+              showFeedback('No se pudo enviar la solicitud. Comprueba tu conexión e inténtalo de nuevo.', true);
+            })
+            .finally(function () {
+              if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalBtnText;
+              }
+            });
         });
       }
       wire('photoForm', 'photoFeedback', 'Fotografía recibida en Cancillería. Queda en estado pendiente hasta ser revisada y aprobada por la comisión de la GNV.');
